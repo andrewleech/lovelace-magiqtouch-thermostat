@@ -7,7 +7,7 @@ module.exports = {
 
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'dual-thermostat.js',
+    filename: 'magiqtouch.js',
     publicPath: '/'
   },
 

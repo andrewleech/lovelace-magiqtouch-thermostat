@@ -1,11 +1,11 @@
 {
-  "name": "dual-thermostat",
+  "name": "magiqtouch",
   "version": "0.0.1",
   "description": "A Dual Thermostat Lovelace Card",
   "main": "src/app.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/enriqg9/dual-thermostat.git"
+    "url": "https://github.com/andrewleech/lovelace-magiqtouch.git"
   },
   "scripts": {
     "dev": "webpack --hide-modules --mode=development",
@@ -16,9 +16,16 @@
     "Home Assistant",
     "Lovelace",
     "Thermostat",
+    "home-assistant",
+    "homeassistant",
+    "hass",
+    "automation",
+    "lovelace",
+    "custom-cards",
     "Card"
   ],
-  "author": "enriqg9",
+  "module": "magiqtouch.js",
+  "author": "andrewleech",
   "license": "MIT",
   "devDependencies": {
     "@babel/core": "^7.2.2",
