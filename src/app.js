@@ -1,20 +1,23 @@
 import {html, LitElement} from "@polymer/lit-element";
-import roundSlider from 'round-slider';
-import roundSliderCSS from "round-slider/dist/roundslider.min.css";
+// import roundSlider from 'round-slider';
+// import roundSliderCSS from "round-slider/dist/roundslider.min.css";
+// import { RoundSlider } from "@thomasloven/round-slider";
+// import "@thomasloven/round-slider";
 
-const thermostatConfig = {
-  radius: 150,
-  step: 1,
-  circleShape: "pie",
-  startAngle: 315,
-  width: 5,
-  lineCap: "round",
-  handleSize: "+10",
-  showTooltip: false,
-};
+
+// const thermostatConfig = {
+//   radius: 150,
+//   step: 1,
+//   circleShape: "pie",
+//   startAngle: 315,
+//   width: 5,
+//   lineCap: "round",
+//   handleSize: "+10",
+//   showTooltip: false,
+// };
 
 const modeIcons = {
-  auto: "hass:calendar-repeat",
+  auto: "hass:calendar-sync",
   heat_cool: "hass:autorenew",
   heat: "hass:fire",
   cool: "hass:snowflake",
@@ -23,20 +26,29 @@ const modeIcons = {
   dry: "hass:water-percent"
 };
 
+// const modeText = {
+//   auto: "Auto",
+//   heat_cool: "Heat/Cool",
+//   heat: "Heat",
+//   cool: "Cool",
+//   off: "Off",
+//   fan_only: "Fan",
+//   dry: "Dry"
+// };
+
 const UPDATE_PROPS = ['stateObj']
 
 function formatTemp(temps) {
   return temps.filter(Boolean).join("-");
 }
 
-class DualThermostatCard extends LitElement {
+class MagiQtouchCard extends LitElement {
 
   static get properties() {
     return {
       _hass: Object,
       _config: Object,
-      cool_entity: Object,
-      heat_entity: Object,
+      entity: Object,
       stateObj: {
         type: Object,
         notify: true
@@ -53,8 +65,7 @@ class DualThermostatCard extends LitElement {
 
     this._hass = null;
     this._config = null;
-    this.cool_entity = null;
-    this.heat_entity = null;
+    this.entity = null;
     this.stateObj = null;
     this.name = null;
     this.mode = null;
@@ -65,14 +76,11 @@ class DualThermostatCard extends LitElement {
   set hass(hass) {
     this._hass = hass;
 
-    if (this._hass && this._config.entities) {
+    if (this._hass && this._config.entity) {
 
-      let {cool, heat} = this.spreadEntities(this._config.entities)
+      this.entity = this.validateEntity(this._config.entity);
 
-      this.cool_entity = this.validateEntity(cool);
-      this.heat_entity = this.validateEntity(heat);
-
-      this.setStateObj(this._config.entities);
+      this.setStateObj(this._config.entity);
 
       this.name = this._config.name || this.stateObj.attributes.friendly_name;
 
@@ -85,33 +93,10 @@ class DualThermostatCard extends LitElement {
     }
   }
 
-  spreadEntities(entities) {
-    if (entities.length < 2) {
-      throw new Error("Specify cool and heat entities from within the climate domain.");
-    }
-
-    let output = [];
-
-    for (let entity of entities) {
-      if (typeof entity === "string" || !('type' in entity)) {
-        break;
-      }
-
-      output[entity.type] = entity.entity;
-    }
-
-    if (Object.keys(output).length == 0) {
-      output['cool'] = entities[0];
-      output['heat'] = entities[1];
-    }
-
-    return output;
-  }
-
-  setStateObj(entities) {
-    this.stateObj = (typeof entities[0] === "string" ?
-      this._hass.states[entities[0]] :
-      this._hass.states[entities[0].entity]);
+  setStateObj(entity_conf) {
+    this.stateObj = (typeof entity_conf === "string" ?
+      this._hass.states[entity_conf] :
+      this._hass.states[entity_conf.entity]);
   }
 
   render() {
@@ -126,9 +111,17 @@ class DualThermostatCard extends LitElement {
       <ha-card
         class="${this.mode} ${broadCard ? 'large' : "small"}">
         <div id="root">
-          <div id="thermostat"></div>
-          <div id="tooltip">
-            <div class="title">${this.name}</div>
+        <div id="controls">
+        <round-slider id="thermostat"
+              min=0
+              value=0
+              max=150
+              step=1
+              @value-changing=${this.dragEvent}
+              @value-changed=${this.newSetting}
+            ></round-slider>
+            </div>
+        <div id="slider-center">
             <div class="current-temperature">
               <span class="current-temperature-text">
                 ${this.stateObj.attributes.current_temperature}
@@ -136,82 +129,52 @@ class DualThermostatCard extends LitElement {
               </span>
             </div>
             <div class="climate-info">
-            <div id="set-temperature"></div>
-            <div class="current-mode">${this.computeCurrentModeName()}</div>
-            <div class="modes">
-              ${(this.stateObj.attributes.hvac_modes || []).map((modeItem) => this.renderIcon(modeItem))}
+              <div id="set-temperature"></div>
+              <div class="current-mode">${this.computeCurrentModeName()}</div>
+              <span> Fan Speed <ha-switch id="SpeedOrTemperature"
+                @click=${this.SpeedOrTemperatureClick}
+              >
+              </ha-switch> Temperature </span>
+              <div class="modes">
+                ${(this.stateObj.attributes.hvac_modes.slice(0).reverse() || []).map((modeItem) => this.renderIcon(modeItem))}
+              </div>
+              <div class="title">${this.name}</div>
             </div>
+
           </div>
+          <!-- <div id="tooltip">
+          </div> -->
         </div>
-        </div>
-        ${this.renderFanControl()}
       </ha-card>
     `;
   }
 
   renderIcon(mode) {
     if (!modeIcons[mode]) {
+      console.log("no icon for: " + mode);
       return html``;
     }
 
     return html`
-      <ha-icon
+      <ha-icon-button
         class="${this.mode === mode ? 'selected-icon' : ''}"
         .mode="${mode}"
-        .icon="${modeIcons[mode]}"
         @click="${this.handleModeClick}"
-      ></ha-icon>
-    `;
-  }
-
-  renderFanControl() {
-    if (!this._config.fan_control) {
-      return '';
-    }
-
-    return html`
-      <div class="fan-info">
-        <paper-dropdown-menu
-          class="fan-mode"
-          label="Fan"
-          @selected-item-changed="${this.handleFanMode}"
-        >
-          <paper-listbox
-            slot="dropdown-content"
-            selected="${this.stateObj.attributes.fan_modes.indexOf(this.stateObj.attributes.fan_mode)}"
-          >
-            ${(this.stateObj.attributes.fan_modes || []).map((fanMode) => {
-        return html`<paper-item mode="${fanMode}">${fanMode}</paper-item>`;
-      }
-    )}
-          </paper-listbox>
-        </paper-dropdown-menu>
-      </div>
+      ><ha-icon icon="${modeIcons[mode]}"></ha-icon></ha-icon-button>
     `;
   }
 
   handleModeClick(e) {
+    let selected = e.currentTarget.mode;
+    if (selected == "cool") {
+      if (this.shadowRoot.querySelector("#SpeedOrTemperature")) {
+        selected = "auto"
+      }
+    }
     this._hass.callService("climate", "set_hvac_mode", {
       entity_id: this.stateObj.entity_id,
-      hvac_mode: e.currentTarget.mode,
+      hvac_mode: selected,
     });
-  }
-
-  handleFanMode(e) {
-    let {
-      detail: {
-        value: node
-      }
-    } = e
-    if (!node) return
-    let value = node.getAttribute('mode')
-
-    if (value && value !== this.stateObj.attributes.fan_mode) {
-      this._hass.callService("climate", "set_fan_mode", {
-        entity_id: this.stateObj.entity_id,
-        fan_mode: value,
-      });
-    }
   }
 
   shouldUpdate(changedProps) {
@@ -219,77 +182,153 @@ class DualThermostatCard extends LitElement {
   }
 
   firstUpdated() {
-    jQuery("#thermostat", this.shadowRoot).roundSlider({
-      ...thermostatConfig,
-      radius: this.clientWidth / 3,
-      min: this.min_slider,
-      max: this.max_slider,
-      sliderType: this.mode === "heat_cool" ? "range" : "min-range",
-      change: (event) => this.setTemperature(event),
-      drag: (event) => this.dragEvent(event),
-    });
+    console.log("firstUpdated");
+    this.updated(null);
+    // jQuery("#thermostat", this.shadowRoot).roundSlider({
+    //   ...thermostatConfig,
+    //   radius: this.clientWidth / 3,
+    //   min: this.min_slider,
+    //   max: this.max_slider,
+    //   sliderType: this.mode === "heat_cool" ? "range" : "min-range",
+    //   change: (event) => this.newSetting(event),
+    //   drag: (event) => this.dragEvent(event),
+    // });
   }
 
   updated(changedProps) {
+    let slider;
     let sliderValue;
     let uiValue;
+    let stSwitch;
+    let stSwitchState;
 
-    if (this.mode === "heat_cool") {
-      sliderValue = `${this.heat_entity.attributes.temperature},${
-        this.cool_entity.attributes.temperature
-        }`;
-
-      uiValue = formatTemp([
-        String(this.heat_entity.attributes.temperature),
-        String(this.cool_entity.attributes.temperature),
-      ]);
-    } else if (this.mode === "cool" || this.mode === "heat") {
-      sliderValue = uiValue = this[this.mode + '_entity'].attributes.temperature;
+    if (this.mode === "cool" || this.mode === "heat" || this.mode === "heat_cool") {
     } else {
+      sliderValue = uiValue = this.entity.attributes.temperature;
       sliderValue = uiValue = Number.isFinite(Number(this.stateObj.attributes.temperature))
         ? this.stateObj.attributes.temperature
         : null;
     }
 
-    jQuery("#thermostat", this.shadowRoot).roundSlider({
-      sliderType: this.mode === "heat_cool" ? "range" : "min-range",
-      value: uiValue ? sliderValue : "",
-      disabled: sliderValue === null
-    });
+    // console.log(jQuery("#thermostat", this.shadowRoot));
+    // console.log(jQuery("#thermostat", this.shadowRoot).value);
+    // jQuery("#thermostat", this.shadowRoot).value = uiValue ? sliderValue : "";
+    // console.log(jQuery("#thermostat", this.shadowRoot)[0]);
+    // console.log(jQuery("#thermostat", this.shadowRoot).value);
+    // console.log(jQuery("#thermostat", this.shadowRoot));
+    // jQuery("#thermostat", this.shadowRoot).RoundSlider({
+    //   // sliderType: this.mode === "heat_cool" ? "range" : "min-range",
+    //   value: uiValue ? sliderValue : "",
+    //   disabled: sliderValue === null
+    // });
 
-    this.shadowRoot.querySelector("#set-temperature").innerHTML = uiValue ? uiValue : "&nbsp;";
+    stSwitchState = this.stateObj.attributes.current_temperature == "Temperature";
+
+    stSwitch = jQuery("#SpeedOrTemperature", this.shadowRoot)[0];
+
+    slider = jQuery("#thermostat", this.shadowRoot)[0];
+
+    if (this.stateObj.state == "cool") { // TODO: is this supported for heat / heat_cool modes?
+      stSwitch.disabled = false;
+    } else {
+      stSwitch.disabled = true;
+    }
+
+    // console.log(this.stateObj);
+    if (this.stateObj.state == "fan_only" || (
+      this.stateObj.state == "cool" && this.stateObj.attributes.fan_mode != "Temperature"
+    )) {
+      let current_fan = parseInt(this.stateObj.attributes.fan_mode);
+      console.log("current fan: " + current_fan);
+      slider.min = 0;
+      slider.value = current_fan;
+      slider.max = 10;
+      this.shadowRoot.querySelector("#set-temperature").innerHTML = current_fan;
+      stSwitchState = false;
+
+    } else {
+     let current_temperature = this.entity.attributes.temperature;
+     console.log("current temp: " + current_temperature);
+     slider.max = this.stateObj.attributes.max_temp;
+      slider.min = this.stateObj.attributes.min_temp;
+      slider.value = current_temperature;
+      this.shadowRoot.querySelector("#set-temperature").innerHTML = current_temperature;
+      stSwitchState = this.stateObj.attributes.fan_mode == "Temperature";
+    }
+
+    stSwitch.checked = stSwitchState
+
+    // console.log(this.stateObj);
+    // slider.disabled = "false"; //this.stateObj.state == "UNAVAILABLE" ? "true" : "false";
+    console.log(jQuery("#thermostat", this.shadowRoot));
+
   }
 
-  setTemperature(e) {
-    if (this.mode === "heat_cool") {
-      if (e.handle.index === 1) {
-        this._hass.callService("climate", "set_temperature", {
-          entity_id: this.heat_entity.entity_id,
-          temperature: e.handle.value
+  SpeedOrTemperatureClick(e) {
+    let _switch = this.shadowRoot.querySelector("#SpeedOrTemperature");
+    if (_switch.disabled) {
+      return
+    }
+
+    const FAN_SPEED_BY_TEMP = "Temperature";
+    const FAN_SPEED_TO_PREV = "Previous";
+
+    if (this.mode === "cool") {
+      if (_switch.checked) {
+        // Switch to fan speed mode (at previous speed setting)
+        this._hass.callService("climate", "set_fan_mode", {
+          entity_id: this.entity.entity_id,
+          fan_mode: FAN_SPEED_TO_PREV
         });
       } else {
-        this._hass.callService("climate", "set_temperature", {
-          entity_id: this.cool_entity.entity_id,
-          temperature: e.handle.value
+        // Switch to temperature control
+        this._hass.callService("climate", "set_fan_mode", {
+          entity_id: this.entity.entity_id,
+          fan_mode: FAN_SPEED_BY_TEMP
         });
       }
-    } else if (this.mode === "cool" || this.mode === "heat") {
-      this._hass.callService("climate", "set_temperature", {
-        entity_id: this[this.mode + '_entity'].entity_id,
-        temperature: e.value,
+    }
+  }
+
+  newSetting(e) {
+    console.log("newSetting");
+    //console.log(e);
+    console.log(e.detail);
+    return;
+    // Round Slider has been adjusted
+    if (this.mode === "fan_only") {
+      this._hass.callService("climate", "set_fan_mode", {
+        entity_id: this.entity.entity_id,
+        fan_mode: max(e.detail.value, 1)
       });
+    } else if (this.mode === "cool") {
+      let _switch = this.shadowRoot.querySelector("#SpeedOrTemperature");
+      if (_switch.checked) {
+        // Temperature mode
+        this._hass.callService("climate", "set_temperature", {
+          entity_id: this.entity.entity_id,
+          temperature: e.detail.value,
+        });
+      } else {
+        // Fan speed mode
+        this._hass.callService("climate", "set_fan_mode", {
+          entity_id: this.entity.entity_id,
+          fan_mode: max(e.detail.value, 1)
+        });
+      }
     } else {
       this._hass.callService("climate", "set_temperature", {
-        entity_id: this.stateObj.entity_id,
-        temperature: e.value,
+        entity_id: this.entity.entity_id,
+        temperature: e.detail.value,
       });
     }
   }
 
-  dragEvent(e) {
-    this.shadowRoot.querySelector("#set-temperature").innerHTML = formatTemp(
-      String(e.value).split(",")
-    );
+  dragEvent(event) {
+    //console.log("Drag")
+    //console.log(event.target);
+    //console.log(event.detail);
+    this.shadowRoot.querySelector("#set-temperature").innerHTML = String(event.detail.value);
   }
 
   validateEntity(entity) {
@@ -303,14 +342,20 @@ class DualThermostatCard extends LitElement {
   }
 
   computeCurrentModeName() {
-    let lang = this._hass.selectedLanguage || this._hass.language;
-    return this._hass.resources[lang][`state.climate.${this.stateObj.state}`] || this.stateObj.state
+    // let lang = this._hass.selectedLanguage || this._hass.language;
+    // return this._hass.resources[lang][`state.climate.${this.stateObj.state}`] || this.stateObj.state
+    return this.stateObj.attributes.hvac_action
+      ? this._hass.localize(
+        `state_attributes.climate.hvac_action.${this.stateObj.attributes.hvac_action}`
+      )
+      : this._hass.localize(
+        `component.climate.state._.${this.stateObj.state}`
+      );
   }
 
   renderStyle() {
     return html`
       <style>
-        ${roundSliderCSS}
         :host {
           display: block;
         }
@@ -323,10 +368,12 @@ class DualThermostatCard extends LitElement {
           --heat-color: #ff8100;
           --manual-color: #44739e;
           --off-color: #8a8a8a;
-          --fan_only-color: #8a8a8a;
+          --fan_only-color: #e5f45f;
           --dry-color: #efbd07;
           --idle-color: #8a8a8a;
           --unknown-color: #bac;
+          --switch-unchecked-button-color: #e5f45d;
+          --switch-unchecked-track-color: #e7f65f;
         }
         #root {
           position: relative;
@@ -366,7 +413,7 @@ class DualThermostatCard extends LitElement {
         .no-title {
           --title-position-top: 33% !important;
         }
-        .large {
+        /* .large {
           --thermostat-padding-top: 25px;
           --thermostat-margin-bottom: 25px;
           --title-font-size: 28px;
@@ -374,65 +421,66 @@ class DualThermostatCard extends LitElement {
           --climate-info-position-top: 81%;
           --set-temperature-font-size: 25px;
           --current-temperature-font-size: 71px;
-          --current-temperature-position-top: 10%;
+          --current-temperature-position-top: 45%;
           --current-temperature-text-padding-left: 15px;
           --uom-font-size: 20px;
           --uom-margin-left: -18px;
           --current-mode-font-size: 18px;
           --set-temperature-margin-bottom: -5px;
-        }
-        .small {
+        } */
+        .small, .large {
           --thermostat-padding-top: 15px;
-          --thermostat-margin-bottom: 15px;
+          --thermostat-margin-bottom: 42px;
           --title-font-size: 18px;
           --title-position-top: 28%;
-          --climate-info-position-top: 79%;
-          --set-temperature-font-size: 16px;
-          --current-temperature-font-size: 25px;
-          --current-temperature-position-top: 5%;
-          --current-temperature-text-padding-left: 7px;
-          --uom-font-size: 12px;
-          --uom-margin-left: -5px;
+          --climate-info-position-top: 70%;
+          --set-temperature-font-size: 25px;
+          --current-temperature-font-size: 70px;
+          --current-temperature-position-top: 34%;
+          --current-temperature-text-padding-left: 5px;
+          --uom-font-size: 25px;
+          --uom-margin-left: -18px;
           --current-mode-font-size: 14px;
           --set-temperature-margin-bottom: 0px;
         }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            padding: 16px;
+            position: relative;
+        }
+
         #thermostat {
+          height: 100%;
+          width: 100%;
+          position: relative;
+          max-width: 250px;
+          min-width: 100px;
           margin: 0 auto var(--thermostat-margin-bottom);
           padding-top: var(--thermostat-padding-top);
         }
-        #thermostat .rs-range-color {
-          background-color: var(--mode-color, var(--disabled-text-color));
+
+        round-slider {
+          --round-slider-path-color: var(--slider-track-color);
+          --round-slider-bar-color: var(--mode-color);
+          /* --round-slider-path-color: var(--mode-color); */
+          padding-bottom: 10%;
         }
-        #thermostat .rs-path-color {
-          background-color: var(--disabled-text-color);
+
+        #slider-center {
+          /* position: absolute;
+          width: calc(100% - 40px);
+          height: calc(100% - 40px); */
+          box-sizing: border-box;
+          border-radius: 100%;
+          left: 20px;
+          top: 20px;
+          text-align: center;
+          overflow-wrap: break-word;
+          /*pointer-events: none;*/
         }
-        #thermostat .rs-handle {
-          background-color: var(--paper-card-background-color, white);
-          padding: 7px;
-          border: 2px solid var(--disabled-text-color);
-        }
-        #thermostat .rs-handle.rs-focus {
-          border-color: var(--mode-color, var(--disabled-text-color));
-        }
-        #thermostat .rs-handle:after {
-          border-color: var(--mode-color, var(--disabled-text-color));
-          background-color: var(--mode-color, var(--disabled-text-color));
-        }
-        #thermostat .rs-border {
-          border-color: var(--rail-border-color);
-        }
-        #thermostat .rs-bar.rs-transition.rs-first,
-        .rs-bar.rs-transition.rs-second {
-          z-index: 20 !important;
-        }
-        #thermostat .rs-readonly {
-          z-index: 10;
-          top: auto;
-        }
-        #thermostat .rs-inner.rs-bg-color.rs-border,
-        #thermostat .rs-overlay.rs-transition.rs-bg-color {
-          background-color: var(--paper-card-background-color, white);
-        }
+
         #tooltip {
           position: absolute;
           top: 0;
@@ -447,13 +495,7 @@ class DualThermostatCard extends LitElement {
           font-size: var(--set-temperature-font-size);
           margin-bottom: var(--set-temperature-margin-bottom);
           min-height: 1.2em;
-        }
-        .title {
-          font-size: var(--title-font-size);
-          position: absolute;
-          top: var(--title-position-top);
-          left: 50%;
-          transform: translate(-50%, -50%);
+          padding-top: 12px;
         }
         .climate-info {
           position: absolute;
@@ -461,13 +503,25 @@ class DualThermostatCard extends LitElement {
           left: 50%;
           transform: translate(-50%, -50%);
           width: 100%;
+          padding-top: 12px;
+        }
+        #SpeedOrTemperature {
+          padding-top: 12px;
+        }
+        .title {
+          font-size: var(--title-font-size);
+          /* position: absolute; */
+          /* top: var(--title-position-top); */
+          /* left: 50%;
+          transform: translate(-50%, -50%); */
+          padding-top: 8px;
         }
         .current-mode {
           font-size: var(--current-mode-font-size);
           color: var(--secondary-text-color);
         }
         .modes {
-          margin-top: 16px;
+          margin-top: 10px;
         }
         .modes ha-icon {
           color: var(--disabled-text-color);
@@ -475,13 +529,14 @@ class DualThermostatCard extends LitElement {
           display: inline-block;
           margin: 0 10px;
         }
-        .modes ha-icon.selected-icon {
+        .modes ha-icon-button.selected-icon {
           color: var(--mode-color);
         }
         .current-temperature {
           position: absolute;
-          top: 50%;
+          top: var(--current-temperature-position-top);
           left: 50%;
+          padding-left: calc(0px - var(--uom-margin-left));
           transform: translate(-50%, -50%);
           font-size: var(--current-temperature-font-size);
         }
@@ -490,7 +545,7 @@ class DualThermostatCard extends LitElement {
         }
         .uom {
           font-size: var(--uom-font-size);
-          vertical-align: top;
+          vertical-align: super;
           margin-left: var(--uom-margin-left);
         }
         .more-info {
@@ -501,21 +556,13 @@ class DualThermostatCard extends LitElement {
           z-index: 25;
           color: var(--secondary-text-color);
         }
-        .fan-info {
-          text-align: center;
-          margin-top: -25px;
-        }
       </style>
     `;
   }
 
   setConfig(config) {
-    for (let entity of config.entities) {
-      if ((typeof entity === "string" && entity.split(".")[0] !== "climate") ||
-        (entity.type === "undefined") && entity.entity.split(".")[0] !== "climate"
-      ) {
-        throw new Error("Specify cool and heat entities from within the climate domain.");
-      }
+    if (typeof config.entity === "string" && config.entity.split(".")[0] !== "climate") {
+        throw new Error("Specify magiqtouch entity.");
     }
 
     this._config = config;
@@ -526,4 +573,4 @@ class DualThermostatCard extends LitElement {
   }
 }
 
-customElements.define("dual-thermostat", DualThermostatCard);
+customElements.define("magiqtouch-thermostat", MagiQtouchCard);
