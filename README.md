@@ -10,15 +10,17 @@ Intended for use with my [magiqtouch integration](https://github.com/andrewleech
 
 ## Installation with HACS
 
-1. Add this repo as a custom Lovelace repo in HACS
-2. Install magiqtouch-thermostat from this repo.
-3. Install the matching integration with HACS from https://github.com/andrewleech/ha_magiqtouch
+1. Add this repo (https://github.com/andrewleech/lovelace-magiqtouch-thermostat) as a custom repo in HACS, category: Lovelace
+    https://hacs.xyz/docs/faq/custom_repositories/
+2. Select this repo on the HACS Frontend section, then the download button.
 
 ## Manual installation
 1. Download the repo as a zip or with git clone and copy contents of the `/dist` folder to a `/www/magiqtouch` folder in your HA configuration folder.
 2. Add the card in Lovelace "Manage Resources" as a Javascript Module with the url: /local/magiqtouch/magiqtouch.js?v=1
 
 ## Example usage:
+Install the matching integration with HACS from: https://github.com/andrewleech/ha_magiqtouch
+
 Add a new Manual card in your front-end with the yaml:
 
 ```yaml
