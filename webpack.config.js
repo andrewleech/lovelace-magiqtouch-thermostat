@@ -33,7 +33,7 @@ module.exports = {
       jQuery: 'jquery'
     }),
     new WebpackBuildNotifierPlugin({
-      title: "Dual Thermostat"
+      title: "MagIQtouch"
     }),
   ]
 };
