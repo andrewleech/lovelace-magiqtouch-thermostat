@@ -1,5 +1,6 @@
 {
     "name": "MagIQtouch",
     "render_readme": true,
-    "filename": "dist/magiqtouch.js"
+    "content_in_root": false,
+    "filename": "magiqtouch.js"
 }

@@ -10,7 +10,7 @@ Intended for use with my [magiqtouch integration](https://github.com/andrewleech
 
 ## Installation with HACS
 
-1. Add this repo as a custom front-end repo in HACS
+1. Add this repo as a custom Lovelace repo in HACS
 2. Install magiqtouch-thermostat from this repo.
 3. Install the matching integration with HACS from https://github.com/andrewleech/ha_magiqtouch
 
