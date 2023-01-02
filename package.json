@@ -8,7 +8,7 @@
     "url": "https://github.com/andrewleech/lovelace-magiqtouch.git"
   },
   "scripts": {
-    "link": "rm -rf dist; mkdir -p /www/magiqtouch; ln -s /www/magiqtouch ./dist",
+    "link": "rm -rf dist; mkdir -p /www/community/lovelace-magiqtouch-thermostat/; ln -s /www/community/lovelace-magiqtouch-thermostat ./dist; rm ./dist/*",
     "dev": "webpack --hide-modules --mode=development",
     "watch": "webpack --hide-modules --watch --mode=development",
     "build": "webpack --hide-modules --mode=production"
