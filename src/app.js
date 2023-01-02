@@ -26,15 +26,16 @@ const modeIcons = {
   dry: "hass:water-percent"
 };
 
-// const modeText = {
-//   auto: "Auto",
-//   heat_cool: "Heat/Cool",
-//   heat: "Heat",
-//   cool: "Cool",
-//   off: "Off",
-//   fan_only: "Fan",
-//   dry: "Dry"
-// };
+const PRESET = {
+    FAN_FRESH: "Fan: Fresh Air",
+    FAN_RECIRC: "Fan: Recirculate",
+    EVAP_TEMP: "Evaporative: set temperature",
+    EVAP_FAN_SPEED: "Evaporative: set fan speed",
+    HEAT_TEMP: "Heating: set temperature",
+    HEAT_FAN_SPEED: "Heating: set fan speed",
+    COOL_TEMP: "Cooling: set temperature",
+    COOL_FAN_SPEED: "Cooling: set fan speed"
+};
 
 const UPDATE_PROPS = ['stateObj']
 
@@ -56,7 +57,9 @@ class MagiQtouchCard extends LitElement {
       mode: String,
       name: String,
       min_slider: Number,
-      max_slider: Number
+      max_slider: Number,
+      has_heat: Boolean,
+      has_evap: Boolean
     }
   }
 
@@ -70,7 +73,9 @@ class MagiQtouchCard extends LitElement {
     this.name = null;
     this.mode = null;
     this.min_slider = null;
-    this.max_slider = null
+    this.max_slider = null;
+    this.has_heat = false;
+    this.has_evap = false
   }
 
   set hass(hass) {
@@ -90,6 +95,9 @@ class MagiQtouchCard extends LitElement {
       this.mode = modeIcons[this.stateObj.state || ""] ?
         this.stateObj.state :
         "unknown-mode";
+        
+      this.has_evap = this.stateObj.attributes.preset_modes.includes(PRESET.FAN_FRESH)
+      this.has_heat = this.stateObj.attributes.preset_modes.includes(PRESET.FAN_RECIRC)
     }
   }
 
@@ -126,19 +134,19 @@ class MagiQtouchCard extends LitElement {
               <div class="current-temperature-text">
                 ${this.stateObj.attributes.current_temperature} </div>
                 ${(this.stateObj.attributes.current_temperature) ? html`<div class="uom">${this._hass.config.unit_system.temperature}</div>` : ""}
-
             </div>
-
-              <div id="set-temperature"></div>
+              <div id="set-temperature" 
+                class="${this.mode === "off" ? 'hidden' : ''}">
+              </div>
               <div class="current-mode">${this.computeCurrentModeName()}</div>
-              <span class="s_or_t">
-                Fan Speed
+              <span id="switch-div">
+                <span id="switch-label-fresh">${this.mode === "fan_only" ? 'Fresh' : 'Fan Speed'}</span>
                 <ha-switch
                   id="SpeedOrTemperature"
                   class="${this.mode === "cool" ? 'switch-cool' : 'switch-fan'}"
                   @change=${this.SpeedOrTemperatureClick}
                 ></ha-switch>
-                Temperature
+                <span id="switch-label-recirc">${this.mode === "fan_only" ? 'Recirculate' : 'Temperature'}</span>
               </span>
               <div class="modes">
                 ${(this.stateObj.attributes.hvac_modes.slice(0).reverse() || []).map((modeItem) => this.renderIcon(modeItem))}
@@ -212,6 +220,12 @@ class MagiQtouchCard extends LitElement {
         }
         .unknown-mode {
           --mode-color: var(--unknown-color);
+        }
+        .hidden {
+           visibility: hidden;
+        }
+        .gone {
+           visibility: gone;
         }
         .no-title {
           --title-position-top: 33% !important;
@@ -326,7 +340,7 @@ class MagiQtouchCard extends LitElement {
           min-height: 1.1em;
           padding-top: 12px;
         }
-        .s_or_t {
+        #switch-div {
           padding-top: 12px;
           display: inline-flex;
           align-items: center;
@@ -439,8 +453,8 @@ class MagiQtouchCard extends LitElement {
     let slider;
     // let sliderValue;
     // let uiValue;
-    let stSwitch;
-    let stSwitchState;
+    // let stSwitch;
+    // let stSwitchState;
 
     // if (this.mode === "cool" || this.mode === "heat" || this.mode === "heat_cool") {
     // } else {
@@ -462,46 +476,118 @@ class MagiQtouchCard extends LitElement {
     //   disabled: sliderValue === null
     // });
 
-    stSwitchState = this.stateObj.attributes.current_temperature == "Temperature";
+    let stSwitchState = this.stateObj.attributes.current_temperature == "Temperature";
 
-    stSwitch = jQuery("#SpeedOrTemperature", this.shadowRoot)[0];
+    let stSwitchDom = jQuery("#SpeedOrTemperature", this.shadowRoot);
+    let stSwitch = stSwitchDom[0];
+    let stSwitchBlock = jQuery("#switch-div", this.shadowRoot);
+    let stSwitchLblFresh = jQuery("#switch-label-fresh", this.shadowRoot);
+    let stSwitchLblRecirc = jQuery("#switch-label-recirc", this.shadowRoot);
+    //let stSwitch = jQuery("#switch-div", this.shadowRoot);
 
+    
     slider = jQuery("#thermostat", this.shadowRoot)[0];
+    //let slider_handle = jQuery(".handles", slider);
+    //console.log(slider_handle);
 
-    if (this.stateObj.state == "fan_only") { // TODO: is this supported for heat / heat_cool modes?
-      stSwitch.disabled = true;
-    } else {
-      stSwitch.disabled = false;
+    let switch_div_hidden = false;
+    let switch_fresh_only = false;
+    let switch_recirc_only = false;
+    if (this.stateObj.state == "off") { 
+        switch_div_hidden = true;
+    } else if (this.stateObj.state == "fan_only") {
+        if (!(this.has_heat && this.has_evap)) {
+            switch_div_hidden = true;
+        } else if ((!this.has_heat) && this.has_evap) {
+            switch_fresh_only = true;
+        } else if (this.has_heat && (!this.has_evap)) {
+            switch_recirc_only = true;
+        }
     }
-
+    //console.log("switch_div_hidden: " + switch_div_hidden);
+    if (switch_div_hidden) {
+        stSwitchBlock.addClass("hidden");
+    } else {
+        stSwitchBlock.removeClass("hidden");
+    }
+    if (switch_fresh_only) {
+        stSwitchLblFresh.addClass("gone");
+        stSwitchDom.addClass("gone");
+    } else {
+        stSwitchLblFresh.removeClass("gone");
+        stSwitchDom.removeClass("gone");
+    }
+    if (switch_recirc_only) {
+        stSwitchLblRecirc.addClass("gone");
+        stSwitchDom.addClass("gone");
+    } else {
+        stSwitchLblRecirc.removeClass("gone");
+        stSwitchDom.removeClass("gone");
+    }
+    
+    let thermostat_in_fan_mode = false;
+    switch(this.stateObj.attributes.preset_mode) {
+      case PRESET.FAN_FRESH:
+          thermostat_in_fan_mode = true;
+          stSwitchState = false;
+          break;
+      case PRESET.FAN_RECIRC:
+          thermostat_in_fan_mode = true;
+          stSwitchState = true;
+          break;
+      case PRESET.EVAP_TEMP:
+          thermostat_in_fan_mode = false;
+          stSwitchState = true;
+          break;
+      case PRESET.EVAP_FAN_SPEED:
+          thermostat_in_fan_mode = true;
+          stSwitchState = false;
+          break;
+      case PRESET.HEAT_TEMP: 
+          thermostat_in_fan_mode = false;
+          stSwitchState = true;
+          break;
+      case PRESET.HEAT_FAN_SPEED:
+          thermostat_in_fan_mode = true;
+          stSwitchState = false;
+          break;
+      case PRESET.COOL_TEMP:
+          thermostat_in_fan_mode = false;
+          stSwitchState = true;
+          break;
+      case PRESET.COOL_FAN_SPEED:
+          thermostat_in_fan_mode = true;
+          stSwitchState = false;
+          break;
+      default:
+        // code block
+    }
     // console.log(this.stateObj);
-    if (this.stateObj.state == "fan_only" ||
-      this.stateObj.attributes.fan_mode != "Temperature"
-    ) {
+    if (thermostat_in_fan_mode) {
       let current_fan = parseInt(this.stateObj.attributes.fan_mode);
       console.log("current fan: " + current_fan);
       slider.min = 0;
       slider.value = current_fan;
       slider.max = 10;
       this.shadowRoot.querySelector("#set-temperature").innerHTML = current_fan;
-      stSwitchState = false;
-
+      
+    } else if (this.stateObj.state == "off") {
+        slider.value = -1;
+        
     } else {
-     let current_temperature = this.entity.attributes.temperature;
-     console.log("current temp: " + current_temperature);
-     slider.max = this.stateObj.attributes.max_temp;
-      slider.min = this.stateObj.attributes.min_temp;
-      slider.value = current_temperature;
-      this.shadowRoot.querySelector("#set-temperature").innerHTML = current_temperature;
-      stSwitchState = this.stateObj.attributes.fan_mode == "Temperature";
+       let current_temperature = this.entity.attributes.temperature;
+       console.log("current temp: " + current_temperature);
+       slider.max = this.stateObj.attributes.max_temp;
+       slider.min = this.stateObj.attributes.min_temp;
+       slider.value = current_temperature;
+       this.shadowRoot.querySelector("#set-temperature").innerHTML = current_temperature;
     }
-
+    
     stSwitch.checked = stSwitchState
 
     // console.log(this.stateObj);
     // slider.disabled = "false"; //this.stateObj.state == "UNAVAILABLE" ? "true" : "false";
-    console.log(jQuery("#thermostat", this.shadowRoot));
-
+    // console.log(jQuery("#thermostat", this.shadowRoot));
   }
 
   SpeedOrTemperatureClick(e) {
@@ -510,23 +596,43 @@ class MagiQtouchCard extends LitElement {
       return
     }
 
-    const FAN_SPEED_BY_TEMP = "Temperature";
-    const FAN_SPEED_TO_PREV = "Previous";
-
-    if (this.mode === "cool") {
-      if (! _switch.checked) {
-        // Switch to fan speed mode (at previous speed setting)
-        this._hass.callService("climate", "set_fan_mode", {
-          entity_id: this.entity.entity_id,
-          fan_mode: FAN_SPEED_TO_PREV
-        });
-      } else {
-        // Switch to temperature control
-        this._hass.callService("climate", "set_fan_mode", {
-          entity_id: this.entity.entity_id,
-          fan_mode: FAN_SPEED_BY_TEMP
-        });
+    let new_preset = null;
+    
+    if (this.mode === "cool" && has_evap) {
+      if (! _switch.checked) { // Switch to fan speed mode
+        new_preset = PRESET.EVAP_FAN_SPEED;
+      } else { // Switch to temperature control
+        new_preset = PRESET.EVAP_TEMP;
       }
+    } else if (this.mode === "cool") {
+      if (! _switch.checked) { // Switch to fan speed mode
+        new_preset = PRESET.COOL_FAN_SPEED;
+      } else { // Switch to temperature control
+        new_preset = PRESET.COOL_TEMP;
+      }
+    } else if (this.mode === "heat") {
+      if (! _switch.checked) { // Switch to fan speed mode
+        new_preset = PRESET.HEAT_FAN_SPEED;
+      } else { // Switch to temperature control
+        new_preset = PRESET.HEAT_TEMP;
+      }
+    } else if (this.mode === "fan_only") {
+      if (! _switch.checked) { // Switch to fresh air mode
+        new_preset = PRESET.FAN_FRESH;
+      } else { // Switch to recirculate air mode
+        new_preset = PRESET.FAN_RECIRC;
+      }
+    }
+    
+    if (new_preset !== null) {
+        if (!this.stateObj.attributes.preset_modes.includes(new_preset)) {
+            console.log("error: tried to set inside preset: " + new_preset);
+        } else {
+            this._hass.callService("climate", "set_preset", {
+              entity_id: this.entity.entity_id,
+              preset_mode: new_preset
+            });
+        }
     }
   }
 
