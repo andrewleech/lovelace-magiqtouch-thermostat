@@ -132,7 +132,7 @@ class MagiQtouchCard extends LitElement {
         <div id="slider-center">
             <div class="current-temperature">
               <div class="current-temperature-text">
-                ${this.stateObj.attributes.current_temperature} </div>
+                ${(this.stateObj.state != "unavailable") ? this.stateObj.attributes.current_temperature : "Offline"} </div>
                 ${(this.stateObj.attributes.current_temperature) ? html`<div class="uom">${this._hass.config.unit_system.temperature}</div>` : ""}
             </div>
               <div id="set-temperature" 
@@ -493,7 +493,9 @@ class MagiQtouchCard extends LitElement {
     let switch_div_hidden = false;
     let switch_fresh_only = false;
     let switch_recirc_only = false;
-    if (this.stateObj.state == "off") { 
+    if (
+        (this.stateObj.state == "off") ||
+        (this.stateObj.state == "unavailable")) { 
         switch_div_hidden = true;
     } else if (this.stateObj.state == "fan_only") {
         if (!(this.has_heat && this.has_evap)) {
@@ -571,7 +573,9 @@ class MagiQtouchCard extends LitElement {
       slider.max = 10;
       this.shadowRoot.querySelector("#set-temperature").innerHTML = current_fan;
       
-    } else if (this.stateObj.state == "off") {
+    } else if (
+        (this.stateObj.state == "unavailable") ||
+        (this.stateObj.state == "off")) {
         slider.value = -1;
         
     } else {
