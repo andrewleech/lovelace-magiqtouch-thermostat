@@ -120,15 +120,16 @@ class MagiQtouchCard extends LitElement {
         class="${this.mode} ${broadCard ? 'large' : "small"}">
         <div id="root">
         <div id="controls">
-        <round-slider id="thermostat"
+          <round-slider id="thermostat"
               min=0
               value=0
               max=150
               step=1
               @value-changing=${this.dragEvent}
               @value-changed=${this.newSetting}
-            ></round-slider>
-            </div>
+            >
+           </round-slider>
+        </div>
         <div id="slider-center">
             <div class="current-temperature">
               <div class="current-temperature-text">
@@ -254,8 +255,8 @@ class MagiQtouchCard extends LitElement {
           --set-temperature-margin-bottom: -5px;
         } */
         .small, .large {
-          --thermostat-padding-top: 15px;
-          --thermostat-margin-bottom: 42px;
+          --thermostat-padding-top: 8px;
+          --thermostat-margin-bottom: 70px;
           --title-font-size: 18px;
           --title-position-top: 28%;
 
@@ -278,8 +279,8 @@ class MagiQtouchCard extends LitElement {
         }
 
         #thermostat {
-          height: 100%;
-          width: 100%;
+          height: 90%;
+          width: 90%;
           position: relative;
           max-width: 250px;
           min-width: 100px;
